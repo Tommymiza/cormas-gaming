@@ -41,13 +41,19 @@ CMGameServer >> initialize [
 
 { #category : 'as yet unclassified' }
 CMGameServer >> joinGame: aClient data: aData [
-
-	| player cleanedPlayers json |
+	| player |
 	player := Dictionary new.
 	player at: 'role' put: (aData at: 'role').
 	player at: 'socket' put: aClient.
 	game addPlayer: (aData at: 'name') data: player.
+	self refreshPlayers
 	
+	
+]
+
+{ #category : 'as yet unclassified' }
+CMGameServer >> refreshPlayers [
+	| cleanedPlayers json |
 	cleanedPlayers := Dictionary new.
 	game players keysAndValuesDo: [ :key :value |
 		cleanedPlayers at: key put: (value at: 'role')	
@@ -109,9 +115,21 @@ CMGameServer >> wsHandler [
 			[
             client runWith: [ :data | self wsRouter: client data: data].
         ] on: ConnectionClosed do: [ :ex |
+				
             Transcript 
-                cr; show: 'Client disconnected '; cr.
+                cr; show: 'Client disconnected '.
 				clients remove: client ifAbsent: [  ].
+				game ifNotNil: [ 
+					| foundKey |
+					foundKey := (game players) keys detect: [ :key |
+    					((game players at: key) at: 'socket') == client
+					] ifNone: [ nil ].
+				
+					foundKey ifNotNil: [
+   						(game players) removeKey: foundKey.
+					].
+					self refreshPlayers
+				].
         ]
 	]).
 	^ wsDelegate
@@ -125,5 +143,6 @@ CMGameServer >> wsRouter: aClient data: aData [
 	data := message at: 'data'.
 	Transcript show: data.
 	type = 'game:join' ifTrue: [ self joinGame: aClient data: data ].
-	type = 'game:state' ifTrue: [  ]
+	type = 'game:state' ifTrue: [  ].
+	type = 'cell:clicked' ifTrue: [ Transcript show: data ].
 ]
